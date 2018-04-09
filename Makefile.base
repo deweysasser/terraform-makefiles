@@ -1,0 +1,50 @@
+TYPES=
+PROFILE=sandbox
+DEFAULT_WORKSPACE=sandbox
+WORKSPACE=$(shell terraform workspace show)
+TO=sandbox
+CONFIRM=
+
+VARS=../$(WORKSPACE).tfvars
+PLAN=terraform plan -refresh=false -var-file $(VARS)
+REFRESH=terraform refresh -var-file $(VARS)
+APPLY=terraform apply
+DESTROY=terraform destroy -var-file $(VARS)
+IMPORT=terraform import -var-file $(VARS) 
+
+
+ALL=$(wildcard *.tf) 
+
+all: Makefile .terraform $(CHANGEFILE) $(ALL)
+
+.terraform:
+	terraform workspace new $(DEFAULT_WORKSPACE)
+	terraform init
+
+
+plan $(CHANGEFILE): aws.tf $(VARS) $(ALL)
+	$(PLAN) $(if $(RESOURCE),--target=$(RESOURCE)) -out $(CHANGEFILE)
+
+apply: $(CHANGEFILE)
+	$(APPLY) $^
+
+refresh:
+	$(REFRESH)
+
+destroy:
+	$(DESTROY) $(if $(RESOURCE),--target=$(RESOURCE)) $(CONFIRM)
+
+import: 
+	$(IMPORT) $(RESOURCE)
+
+reset:
+	rm -f $(foreach type,$(TYPES),$(type).tf $(type).tfstate) $(STATEFILE)
+
+import-files: $(WORKSPACE)-*-import.txt
+	egrep ".* .*" $^ | while read LINE; do $(IMPORT) $${LINE} || echo $${LINE} >> $(WORKSPACE)-import-errors.txt; done
+
+
+$(VARS):
+	cp $(dir $(VARS))/default.tfvars $@
+
+
